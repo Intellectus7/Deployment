@@ -2,43 +2,48 @@ import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
+# Load environment variables from a .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # This enables CORS for all routes
 
 def get_db_connection():
-    conn = "psql 'postgresql://neondb_owner:npg_z4K3VEavmUYo@ep-morning-leaf-ab3ldqxu-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'"
+    # Use the DATABASE_URL environment variable for the connection string
+    conn = psycopg2.connect(os.environ['DATABASE_URL'])
     return conn
 
 # Initialize the database table
 def init_db():
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS todos (
-            id SERIAL PRIMARY KEY,
-            text VARCHAR(255) NOT NULL,
-            completed BOOLEAN DEFAULT FALSE
-        );
-    ''')
-    conn.commit()
-    cur.close()
-    conn.close()
+    # Use a context manager to ensure the connection and cursor are closed properly
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS todos (
+                    id SERIAL PRIMARY KEY,
+                    text VARCHAR(255) NOT NULL,
+                    completed BOOLEAN DEFAULT FALSE
+                );
+            ''')
+        # conn.commit() is automatically called by the context manager on success
+    # conn.close() is also automatically handled
 
 init_db()
 
 @app.route('/todos', methods=['GET'])
 def get_todos():
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM todos ORDER BY id')
-    todos = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify([{'id': todo[0], 'text': todo[1], 'completed': todo[2]} for todo in todos])
+    with conn:
+        # Use RealDictCursor to fetch results as a dictionary
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute('SELECT * FROM todos ORDER BY id')
+            todos = cur.fetchall()
+            return jsonify(todos)
+    # The context manager automatically closes the connection and cursor
 
 @app.route('/todos', methods=['POST'])
 def add_todo():
@@ -48,13 +53,9 @@ def add_todo():
         return jsonify({'error': 'Text is required'}), 400
 
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('INSERT INTO todos (text) VALUES (%s) RETURNING *', (text,))
-    new_todo = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
-    return jsonify({'id': new_todo[0], 'text': new_todo[1], 'completed': new_todo[2]}), 201
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    with conn:
+        # Use RealDictCursor to return the new row as a dictionary
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute('INSERT INTO todos (text) VALUES (%s) RETURNING *', (text,))
+            new_todo = cur.fetchone()
+            return jsonify(new_todo), 201
