@@ -13,7 +13,7 @@ CORS(app)  # This enables CORS for all routes
 
 def get_db_connection():
     # Use the DATABASE_URL environment variable for the connection string
-    conn = psycopg2.connect(os.environ['DATATBASE_URL'])
+    conn = psycopg2.connect(os.environ['DATABASE_URL'])
     return conn
 
 # Initialize the database table
