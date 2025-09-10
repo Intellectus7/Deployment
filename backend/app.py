@@ -13,7 +13,7 @@ CORS(app)  # This enables CORS for all routes
 
 def get_db_connection():
     # Use the DATABASE_URL environment variable for the connection string
-    conn = psycopg2.connect(os.environ['DATABASE_URL'])
+    conn = psycopg2.connect(os.environ['URL'])
     return conn
 
 # Initialize the database table
@@ -59,3 +59,4 @@ def add_todo():
             cur.execute('INSERT INTO todos (text) VALUES (%s) RETURNING *', (text,))
             new_todo = cur.fetchone()
             return jsonify(new_todo), 201
+#
